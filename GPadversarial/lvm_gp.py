@@ -64,4 +64,5 @@ def generate_adversarial_example(m,m2,advXin):
         #print(latent_advX, pred)
         if N>1000:
             return None, None, pred
+        N+=1
     return m.predict(latent_advX)[0], latent_advX, pred
