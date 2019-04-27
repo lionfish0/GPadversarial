@@ -83,7 +83,7 @@ def get_numerical_f_grad(m,advX):
     delta_fs, _ = m.predict_noiseless(np.repeat(advX,advX.shape[1],0) + eps*np.eye(advX.shape[1]))
     return (delta_fs - f)/eps
 
-def generate_adversarial_example(m,advXin,changedir=0):
+def generate_adversarial_example(m,advXin,changedir=0,threshold=0):
     """
     Produce an adversarial example using the 'advX' as the seed
     We can either set pixels high or low. Use:
@@ -96,28 +96,49 @@ def generate_adversarial_example(m,advXin,changedir=0):
     listofperturbed = []
     advX = advXin.copy()
     pred, var = m.predict(advX)
+    prednoiseless, _ = m.predict_noiseless(advX)
     preddir = np.sign(0.5-pred[0][0]) #direction to go in
     N = 0
-    while (np.sign(pred-0.5)!=preddir):
+    #while (np.sign(pred-0.5)!=preddir):
+    print(prednoiseless,'*',preddir,'<',threshold,'*',preddir,'=',prednoiseless*preddir,'<',threshold*preddir)
+    
+    while (prednoiseless*preddir<threshold*preddir):
+        print(prednoiseless,'*',preddir,'<',threshold,'*',preddir,'=',prednoiseless*preddir,'<',threshold*preddir)
         if N>advX.shape[1]:
-            return None, pred, N
+            print("Changed all pixels, but threshold not reached")
+            return advX, pred, N, listofperturbed
         oldsum = np.sum(advX)
         while np.sum(advX)==oldsum:
             pred, var = m.predict(advX)   
-            #est = get_numerical_pi_grad(m, advX) 
-            est = calc_df_dx(m,advX)
+            est = get_numerical_pi_grad(m, advX)
             est[listofperturbed] = 0
+
             #perti = np.argmax(est)
             #advX[0,perti] = 0
-            if changedir!=0:
+            print("!")
+            if (changedir==-1) or (changedir==1):
                 perti = np.argmax(changedir*preddir*est)
                 advX[0,perti] = 128+128*changedir
-            else:
+                print(changedir)
+            if changedir==0:
+                print(np.abs(est))
                 perti = np.argmax(np.abs(est))
                 advX[0,perti] = 128+128*preddir*np.sign(est[perti])
+            if changedir is None:
+                stepstocheck = 20
+                perti = np.argmax(np.abs(est))
+                temp = np.repeat(advX,stepstocheck,0)
+                temp[:,perti]=np.linspace(0,255,stepstocheck)
+                idx = np.argmax(m.predict(temp)[0]*preddir)
+                print(m.predict(temp)[0]*preddir)
+                advX[0,perti] = temp[idx,perti]
+                print(idx)
             pred, var = m.predict(advX)
+            prednoiseless, _ = m.predict_noiseless(advX)
             if perti in listofperturbed:
-                return None, pred, N
+                print("Changed all pixels, but threshold not reached.")
+                return advX, pred, N, listofperturbed
             listofperturbed.append(perti)
         N+=1
-    return advX, pred, N
+        print(prednoiseless,'*',preddir,'<',threshold,'*',preddir,'=',prednoiseless*preddir,'<',threshold*preddir)
+    return advX, pred, N, listofperturbed
